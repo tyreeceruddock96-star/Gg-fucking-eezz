@@ -1,0 +1,773 @@
+--[[
+    CZ HUB — Halloween Edition
+    - Anti Die / Anti Fling / Spin (typed speed 1 - 10000000000)
+    - Spin works while running AND while holding a tool
+    - Leaked by discord.gg/NTvXzmKqz9
+    - Status dot: green when Spin is ON, red when OFF
+    - Raining ghosts inside the UI
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local LP = Players.LocalPlayer
+local PlayerGui = LP:WaitForChild("PlayerGui")
+
+-- State -------------------------------------------------------
+local AntiDie = false
+local AntiFling = false
+local Spinning = false
+local Minimized = false
+
+local SpinSpeed = 360
+local MIN_SPEED = 1
+local MAX_SPEED = 10000000000
+local SpinKeybind = Enum.KeyCode.RightShift
+local ListeningForKey = false
+
+-- Halloween palette -------------------------------------------
+local C_BG      = Color3.fromRGB(10, 6, 18)
+local C_PANEL   = Color3.fromRGB(20, 12, 32)
+local C_STROKE  = Color3.fromRGB(255, 120, 30)
+local C_STROKE2 = Color3.fromRGB(75, 45, 110)
+local C_TEXT    = Color3.fromRGB(240, 225, 255)
+local C_TEXTDIM = Color3.fromRGB(160, 140, 190)
+local C_ORANGE  = Color3.fromRGB(255, 140, 30)
+local C_PURPLE  = Color3.fromRGB(130, 65, 190)
+local C_ON      = Color3.fromRGB(255, 140, 30)
+local C_OFF     = Color3.fromRGB(50, 35, 75)
+local C_GREEN   = Color3.fromRGB(55, 225, 115)
+local C_RED     = Color3.fromRGB(225, 55, 65)
+
+-- Root GUI ----------------------------------------------------
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "CzHub"
+Gui.ResetOnSpawn = false
+Gui.IgnoreGuiInset = true
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+Gui.Parent = PlayerGui
+
+local Main = Instance.new("Frame")
+Main.Size = UDim2.fromOffset(240, 258)
+Main.Position = UDim2.new(0.5, -120, 0.5, -129)
+Main.BackgroundColor3 = C_BG
+Main.BorderSizePixel = 0
+Main.Parent = Gui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 13)
+MainCorner.Parent = Main
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = C_STROKE
+MainStroke.Thickness = 1.5
+MainStroke.Transparency = 0.2
+MainStroke.Parent = Main
+
+-- Ghost layer -------------------------------------------------
+local GhostLayer = Instance.new("Frame")
+GhostLayer.Name = "GhostLayer"
+GhostLayer.Size = UDim2.new(1, 0, 1, 0)
+GhostLayer.BackgroundTransparency = 1
+GhostLayer.ClipsDescendants = true
+GhostLayer.ZIndex = 0
+GhostLayer.Parent = Main
+
+-- Header ------------------------------------------------------
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 68)
+Header.BackgroundTransparency = 1
+Header.ZIndex = 2
+Header.Parent = Main
+
+local Dot = Instance.new("Frame")
+Dot.Size = UDim2.fromOffset(8, 8)
+Dot.Position = UDim2.fromOffset(13, 17)
+Dot.BackgroundColor3 = C_RED
+Dot.BorderSizePixel = 0
+Dot.ZIndex = 3
+Dot.Parent = Header
+
+local DotCorner = Instance.new("UICorner")
+DotCorner.CornerRadius = UDim.new(1, 0)
+DotCorner.Parent = Dot
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -70, 0, 20)
+Title.Position = UDim2.fromOffset(30, 5)
+Title.BackgroundTransparency = 1
+Title.Text = "🎃 Cz hub"
+Title.TextColor3 = C_ORANGE
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 15
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.ZIndex = 3
+Title.Parent = Header
+
+local Subtitle = Instance.new("TextLabel")
+Subtitle.Size = UDim2.new(1, -70, 0, 12)
+Subtitle.Position = UDim2.fromOffset(30, 25)
+Subtitle.BackgroundTransparency = 1
+Subtitle.Text = "jukes • bat aimbot"
+Subtitle.TextColor3 = C_TEXT
+Subtitle.Font = Enum.Font.GothamMedium
+Subtitle.TextSize = 9
+Subtitle.TextXAlignment = Enum.TextXAlignment.Left
+Subtitle.ZIndex = 3
+Subtitle.Parent = Header
+
+local LeakedLabel = Instance.new("TextLabel")
+LeakedLabel.Size = UDim2.new(1, -20, 0, 12)
+LeakedLabel.Position = UDim2.fromOffset(30, 39)
+LeakedLabel.BackgroundTransparency = 1
+LeakedLabel.Text = "leaked by - discord.gg/NTvXzmKqz9"
+LeakedLabel.TextColor3 = C_TEXTDIM
+LeakedLabel.Font = Enum.Font.Gotham
+LeakedLabel.TextSize = 8
+LeakedLabel.TextXAlignment = Enum.TextXAlignment.Left
+LeakedLabel.ZIndex = 3
+LeakedLabel.Parent = Header
+
+local Minimize = Instance.new("TextButton")
+Minimize.Size = UDim2.fromOffset(26, 26)
+Minimize.Position = UDim2.new(1, -36, 0, 10)
+Minimize.BackgroundColor3 = C_PANEL
+Minimize.BorderSizePixel = 0
+Minimize.Text = "−"
+Minimize.TextColor3 = C_TEXT
+Minimize.TextSize = 14
+Minimize.Font = Enum.Font.Gotham
+Minimize.AutoButtonColor = false
+Minimize.ZIndex = 3
+Minimize.Parent = Header
+
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(0, 8)
+MinCorner.Parent = Minimize
+
+local MinStroke = Instance.new("UIStroke")
+MinStroke.Color = C_STROKE2
+MinStroke.Thickness = 1
+MinStroke.Parent = Minimize
+
+-- Toggle factory ----------------------------------------------
+local function CreateToggle(Name, Y)
+	local Box = Instance.new("Frame")
+	Box.Name = Name
+	Box.Size = UDim2.new(1, -20, 0, 38)
+	Box.Position = UDim2.fromOffset(10, Y)
+	Box.BackgroundColor3 = C_PANEL
+	Box.BorderSizePixel = 0
+	Box.ZIndex = 2
+	Box.Parent = Main
+
+	local Corner = Instance.new("UICorner")
+	Corner.CornerRadius = UDim.new(0, 10)
+	Corner.Parent = Box
+
+	local Stroke = Instance.new("UIStroke")
+	Stroke.Color = C_STROKE2
+	Stroke.Thickness = 1
+	Stroke.Parent = Box
+
+	local Label = Instance.new("TextLabel")
+	Label.Size = UDim2.new(1, -75, 1, 0)
+	Label.Position = UDim2.fromOffset(12, 0)
+	Label.BackgroundTransparency = 1
+	Label.Text = Name
+	Label.TextColor3 = C_TEXT
+	Label.Font = Enum.Font.GothamMedium
+	Label.TextSize = 13
+	Label.TextXAlignment = Enum.TextXAlignment.Left
+	Label.ZIndex = 3
+	Label.Parent = Box
+
+	local Button = Instance.new("TextButton")
+	Button.Size = UDim2.fromOffset(42, 22)
+	Button.Position = UDim2.new(1, -54, 0.5, -11)
+	Button.BackgroundColor3 = C_OFF
+	Button.BorderSizePixel = 0
+	Button.Text = ""
+	Button.AutoButtonColor = false
+	Button.ZIndex = 3
+	Button.Parent = Box
+
+	local ButtonCorner = Instance.new("UICorner")
+	ButtonCorner.CornerRadius = UDim.new(1, 0)
+	ButtonCorner.Parent = Button
+
+	local Circle = Instance.new("Frame")
+	Circle.Size = UDim2.fromOffset(16, 16)
+	Circle.Position = UDim2.fromOffset(3, 3)
+	Circle.BackgroundColor3 = Color3.fromRGB(247, 247, 247)
+	Circle.BorderSizePixel = 0
+	Circle.ZIndex = 4
+	Circle.Parent = Button
+
+	local CircleCorner = Instance.new("UICorner")
+	CircleCorner.CornerRadius = UDim.new(1, 0)
+	CircleCorner.Parent = Circle
+
+	return Box, Button, Circle
+end
+
+local AntiDieBox,   AntiDieButton,   AntiDieCircle   = CreateToggle("Anti Die",   72)
+local AntiFlingBox, AntiFlingButton, AntiFlingCircle = CreateToggle("Anti Fling", 114)
+local SpinBox,      SpinButton,      SpinCircle      = CreateToggle("Spin",       156)
+
+-- Keybind + speed row -----------------------------------------
+local KeybindButton = Instance.new("TextButton")
+KeybindButton.Name = "KeybindButton"
+KeybindButton.Size = UDim2.fromOffset(78, 28)
+KeybindButton.Position = UDim2.fromOffset(10, 200)
+KeybindButton.BackgroundColor3 = C_PANEL
+KeybindButton.BorderSizePixel = 0
+KeybindButton.Text = SpinKeybind.Name
+KeybindButton.TextColor3 = C_TEXT
+KeybindButton.Font = Enum.Font.GothamMedium
+KeybindButton.TextSize = 11
+KeybindButton.AutoButtonColor = false
+KeybindButton.ZIndex = 3
+KeybindButton.Parent = Main
+
+local KeybindCorner = Instance.new("UICorner")
+KeybindCorner.CornerRadius = UDim.new(0, 9)
+KeybindCorner.Parent = KeybindButton
+
+local KeyStroke = Instance.new("UIStroke")
+KeyStroke.Color = C_STROKE2
+KeyStroke.Thickness = 1
+KeyStroke.Parent = KeybindButton
+
+local SpeedBox = Instance.new("TextBox")
+SpeedBox.Name = "SpeedBox"
+SpeedBox.Size = UDim2.fromOffset(132, 28)
+SpeedBox.Position = UDim2.fromOffset(96, 200)
+SpeedBox.BackgroundColor3 = C_PANEL
+SpeedBox.BorderSizePixel = 0
+SpeedBox.Text = tostring(SpinSpeed)
+SpeedBox.PlaceholderText = "Speed 1 - 10000000000"
+SpeedBox.TextColor3 = C_TEXT
+SpeedBox.PlaceholderColor3 = C_TEXTDIM
+SpeedBox.Font = Enum.Font.GothamMedium
+SpeedBox.TextSize = 11
+SpeedBox.ClearTextOnFocus = false
+SpeedBox.ZIndex = 3
+SpeedBox.Parent = Main
+
+local SpeedCorner = Instance.new("UICorner")
+SpeedCorner.CornerRadius = UDim.new(0, 9)
+SpeedCorner.Parent = SpeedBox
+
+local SpeedStroke = Instance.new("UIStroke")
+SpeedStroke.Color = C_STROKE2
+SpeedStroke.Thickness = 1
+SpeedStroke.Parent = SpeedBox
+
+-- Discord footer ----------------------------------------------
+local Discord = Instance.new("TextLabel")
+Discord.Name = "Discord"
+Discord.Size = UDim2.new(1, -20, 0, 22)
+Discord.Position = UDim2.new(0, 10, 1, -30)
+Discord.BackgroundColor3 = C_PURPLE
+Discord.BorderSizePixel = 0
+Discord.Text = "discord.gg/NTvXzmKqz9"
+Discord.TextColor3 = C_TEXT
+Discord.Font = Enum.Font.GothamMedium
+Discord.TextSize = 12
+Discord.ZIndex = 2
+Discord.Parent = Main
+
+local DiscordCorner = Instance.new("UICorner")
+DiscordCorner.CornerRadius = UDim.new(0, 8)
+DiscordCorner.Parent = Discord
+
+-- Toggle visuals ----------------------------------------------
+local ToggleInfo = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local function SetToggle(Button, Circle, Enabled)
+	if Enabled then
+		TweenService:Create(Button, ToggleInfo, {BackgroundColor3 = C_ON}):Play()
+		TweenService:Create(Circle, ToggleInfo, {Position = UDim2.new(1, -19, 0, 3)}):Play()
+	else
+		TweenService:Create(Button, ToggleInfo, {BackgroundColor3 = C_OFF}):Play()
+		TweenService:Create(Circle, ToggleInfo, {Position = UDim2.fromOffset(3, 3)}):Play()
+	end
+end
+
+local function UpdateDot()
+	local Color = Spinning and C_GREEN or C_RED
+	TweenService:Create(Dot, TweenInfo.new(0.15), {BackgroundColor3 = Color}):Play()
+end
+
+-- Highlight ---------------------------------------------------
+local Highlight
+
+local function UpdateHighlight()
+	if Highlight then
+		Highlight:Destroy()
+		Highlight = nil
+	end
+
+	if not (AntiDie or Spinning) then return end
+
+	local Character = LP.Character
+	if not Character then return end
+
+	Highlight = Instance.new("Highlight")
+	Highlight.Name = "CzAntiDieOutline"
+	Highlight.Adornee = Character
+	Highlight.FillTransparency = 1
+	Highlight.OutlineTransparency = 0
+	Highlight.OutlineColor = C_ORANGE
+	Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	Highlight.Parent = Character
+end
+
+-- Protection system -------------------------------------------
+local ProtectionConns = {}
+
+local function CleanupProtection()
+	for _, connection in pairs(ProtectionConns) do
+		connection:Disconnect()
+	end
+	table.clear(ProtectionConns)
+end
+
+local function IsProtectionActive()
+	return AntiDie or Spinning
+end
+
+local function SetupProtection(Character)
+	if not IsProtectionActive() then return end
+	if not Character or not Character.Parent then return end
+
+	local hum = Character:FindFirstChildOfClass("Humanoid")
+	if not hum then
+		hum = Character:WaitForChild("Humanoid", 10)
+	end
+	if not hum or not hum.Parent then return end
+
+	CleanupProtection()
+
+	hum.BreakJointsOnDeath = false
+	hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+
+	table.insert(ProtectionConns, hum:GetPropertyChangedSignal("Health"):Connect(function()
+		if IsProtectionActive() and hum.Parent and hum.Health <= 0 then
+			hum.Health = hum.MaxHealth
+		end
+	end))
+
+	table.insert(ProtectionConns, hum.Died:Connect(function()
+		if not IsProtectionActive() then return end
+		task.defer(function()
+			if hum and hum.Parent and hum.Health <= 0 then
+				hum.Health = hum.MaxHealth
+			end
+		end)
+	end))
+end
+
+local function DisableProtection()
+	CleanupProtection()
+	local Character = LP.Character
+	if not Character then return end
+	local hum = Character:FindFirstChildOfClass("Humanoid")
+	if hum then
+		hum.BreakJointsOnDeath = true
+		hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+	end
+end
+
+local function UpdateProtection()
+	if IsProtectionActive() then
+		SetupProtection(LP.Character)
+	else
+		DisableProtection()
+	end
+	UpdateHighlight()
+end
+
+-- Anti Fling --------------------------------------------------
+local AntiFlingConnection = nil
+local LastSafeCFrame = nil
+
+local function CleanupAntiFling()
+	if AntiFlingConnection then
+		AntiFlingConnection:Disconnect()
+		AntiFlingConnection = nil
+	end
+	LastSafeCFrame = nil
+end
+
+local function ActivateAntiFling()
+	CleanupAntiFling()
+
+	AntiFlingConnection = RunService.Heartbeat:Connect(function()
+		if not AntiFling then return end
+
+		local Character = LP.Character
+		if not Character then return end
+
+		local Root = Character:FindFirstChild("HumanoidRootPart")
+		local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+		if not Root or not Humanoid then return end
+
+		local Velocity = Root.AssemblyLinearVelocity
+		local AngularVelocity = Root.AssemblyAngularVelocity
+
+		if Velocity.Magnitude < 80 and AngularVelocity.Magnitude < 80 then
+			LastSafeCFrame = Root.CFrame
+			return
+		end
+
+		if LastSafeCFrame then
+			Root.CFrame = LastSafeCFrame
+		end
+
+		Root.AssemblyLinearVelocity = Vector3.zero
+		Root.AssemblyAngularVelocity = Vector3.zero
+		Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+	end)
+end
+
+local function DeactivateAntiFling()
+	CleanupAntiFling()
+end
+
+-- Spin --------------------------------------------------------
+-- AutoRotate is disabled while spinning so running / holding a tool
+-- can't fight the rotation. The spin is applied on Stepped at a high
+-- priority so it always wins after movement has been processed.
+local SpinConnection = nil
+
+local function GetHumanoid()
+	local Character = LP.Character
+	if not Character then return nil end
+	return Character:FindFirstChildOfClass("Humanoid")
+end
+
+local function StartSpinRotation()
+	if SpinConnection then return end
+
+	local hum = GetHumanoid()
+	if hum then
+		hum.AutoRotate = false
+	end
+
+	SpinConnection = RunService.Stepped:Connect(function(_, dt)
+		if not Spinning then return end
+
+		local Character = LP.Character
+		if not Character then return end
+		local Root = Character:FindFirstChild("HumanoidRootPart")
+		local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+		if not Root then return end
+
+		-- keep auto-rotate off in case it got re-enabled (tool equip, respawn)
+		if Humanoid and Humanoid.AutoRotate then
+			Humanoid.AutoRotate = false
+		end
+
+		local Degrees = (SpinSpeed * dt) % 360
+		Root.CFrame = Root.CFrame * CFrame.Angles(0, math.rad(Degrees), 0)
+	end, Enum.RenderPriority.Character.Value + 1)
+end
+
+local function StopSpinRotation()
+	if SpinConnection then
+		SpinConnection:Disconnect()
+		SpinConnection = nil
+	end
+
+	local hum = GetHumanoid()
+	if hum then
+		hum.AutoRotate = true
+	end
+end
+
+local function SetSpinning(state)
+	Spinning = state
+
+	if Spinning then
+		StartSpinRotation()
+	else
+		StopSpinRotation()
+	end
+
+	SetToggle(SpinButton, SpinCircle, Spinning)
+	UpdateProtection()
+	UpdateDot()
+end
+
+-- Speed box ---------------------------------------------------
+local function ApplySpeed(text)
+	local n = tonumber(text)
+	if not n or n ~= n then n = SpinSpeed end
+	if n == math.huge then n = MAX_SPEED end
+	if n == -math.huge then n = MIN_SPEED end
+
+	n = math.floor(n)
+	n = math.clamp(n, MIN_SPEED, MAX_SPEED)
+
+	SpinSpeed = n
+	SpeedBox.Text = tostring(n)
+end
+
+SpeedBox:GetPropertyChangedSignal("Text"):Connect(function()
+	local digitsOnly = SpeedBox.Text:gsub("%D", "")
+	if digitsOnly ~= SpeedBox.Text then
+		SpeedBox.Text = digitsOnly
+	end
+end)
+
+SpeedBox.FocusLost:Connect(function()
+	ApplySpeed(SpeedBox.Text)
+end)
+
+ApplySpeed(tostring(SpinSpeed))
+
+-- Button click handlers ---------------------------------------
+AntiDieButton.MouseButton1Click:Connect(function()
+	AntiDie = not AntiDie
+	SetToggle(AntiDieButton, AntiDieCircle, AntiDie)
+	UpdateProtection()
+end)
+
+AntiFlingButton.MouseButton1Click:Connect(function()
+	AntiFling = not AntiFling
+	SetToggle(AntiFlingButton, AntiFlingCircle, AntiFling)
+
+	if AntiFling then
+		ActivateAntiFling()
+	else
+		DeactivateAntiFling()
+	end
+end)
+
+SpinButton.MouseButton1Click:Connect(function()
+	SetSpinning(not Spinning)
+end)
+
+-- Keybind -----------------------------------------------------
+local function ResetKeybindVisual()
+	ListeningForKey = false
+	KeybindButton.Text = SpinKeybind.Name
+	KeybindButton.TextColor3 = C_TEXT
+	KeyStroke.Color = C_STROKE2
+end
+
+local function SetKeybind(k)
+	SpinKeybind = k
+	ResetKeybindVisual()
+end
+
+KeybindButton.MouseButton1Click:Connect(function()
+	if ListeningForKey then
+		ResetKeybindVisual()
+	else
+		ListeningForKey = true
+		KeybindButton.Text = "Press..."
+		KeybindButton.TextColor3 = C_ORANGE
+		KeyStroke.Color = C_ORANGE
+	end
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if ListeningForKey then
+		local ut = input.UserInputType
+		if ut == Enum.UserInputType.Keyboard then
+			if input.KeyCode == Enum.KeyCode.Escape then
+				ResetKeybindVisual()
+			else
+				SetKeybind(input.KeyCode)
+			end
+		elseif ut.Name:match("^Gamepad") then
+			SetKeybind(input.KeyCode)
+		end
+		return
+	end
+
+	if UserInputService:GetFocusedTextBox() then return end
+
+	if input.KeyCode == SpinKeybind and input.KeyCode ~= Enum.KeyCode.Unknown then
+		SetSpinning(not Spinning)
+	end
+end)
+
+-- Character lifecycle -----------------------------------------
+LP.CharacterAdded:Connect(function(Character)
+	local Humanoid = Character:WaitForChild("Humanoid", 10)
+	if not Humanoid then return end
+
+	task.wait(0.1)
+
+	if Spinning then
+		-- re-lock rotation on the new character
+		Humanoid.AutoRotate = false
+	end
+
+	if IsProtectionActive() then
+		SetupProtection(Character)
+		UpdateHighlight()
+	end
+
+	if AntiFling then
+		ActivateAntiFling()
+	end
+end)
+
+LP.CharacterRemoving:Connect(function()
+	CleanupProtection()
+	CleanupAntiFling()
+end)
+
+-- Minimize ----------------------------------------------------
+Minimize.MouseButton1Click:Connect(function()
+	Minimized = not Minimized
+
+	if Minimized then
+		AntiDieBox.Visible = false
+		AntiFlingBox.Visible = false
+		SpinBox.Visible = false
+		KeybindButton.Visible = false
+		SpeedBox.Visible = false
+		Discord.Visible = false
+		Main.Size = UDim2.fromOffset(240, 56)
+		Minimize.Text = "+"
+	else
+		AntiDieBox.Visible = true
+		AntiFlingBox.Visible = true
+		SpinBox.Visible = true
+		KeybindButton.Visible = true
+		SpeedBox.Visible = true
+		Discord.Visible = true
+		Main.Size = UDim2.fromOffset(240, 258)
+		Minimize.Text = "−"
+	end
+end)
+
+-- Dragging ----------------------------------------------------
+local Dragging = false
+local DragStart
+local StartPosition
+
+Header.InputBegan:Connect(function(Input)
+	if Input.UserInputType == Enum.UserInputType.Touch
+		or Input.UserInputType == Enum.UserInputType.MouseButton1 then
+		Dragging = true
+		DragStart = Input.Position
+		StartPosition = Main.Position
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(Input)
+	if not Dragging then return end
+	if Input.UserInputType == Enum.UserInputType.Touch
+		or Input.UserInputType == Enum.UserInputType.MouseMovement then
+		local Delta = Input.Position - DragStart
+		Main.Position = UDim2.new(
+			StartPosition.X.Scale,
+			StartPosition.X.Offset + Delta.X,
+			StartPosition.Y.Scale,
+			StartPosition.Y.Offset + Delta.Y
+		)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(Input)
+	if Input.UserInputType == Enum.UserInputType.Touch
+		or Input.UserInputType == Enum.UserInputType.MouseButton1 then
+		Dragging = false
+	end
+end)
+
+-- Falling ghosts inside the UI --------------------------------
+local GHOST_CHARS = { "👻", "👻", "👻", "🎃" }
+
+local function SpawnGhost()
+	local ghost = Instance.new("TextLabel")
+	ghost.BackgroundTransparency = 1
+	ghost.Text = GHOST_CHARS[math.random(1, #GHOST_CHARS)]
+	ghost.Font = Enum.Font.GothamBold
+	ghost.TextSize = math.random(12, 20)
+	ghost.TextColor3 = Color3.fromRGB(235, 215, 255)
+	ghost.TextTransparency = 0.05
+	ghost.Size = UDim2.fromOffset(24, 24)
+	ghost.Rotation = math.random(-15, 15)
+	ghost.TextXAlignment = Enum.TextXAlignment.Center
+	ghost.TextYAlignment = Enum.TextYAlignment.Center
+	ghost.ZIndex = 1
+
+	local startX = math.random(5, 235) / 240
+	ghost.Position = UDim2.new(startX, -12, 0, -26)
+	ghost.Parent = GhostLayer
+
+	local duration = math.random(40, 80) / 10
+	local endRot = math.random(-55, 55)
+
+	local fallTween = TweenService:Create(
+		ghost,
+		TweenInfo.new(duration, Enum.EasingStyle.Linear),
+		{
+			Position = UDim2.new(startX, -12, 1, 26),
+			Rotation = endRot,
+		}
+	)
+	fallTween:Play()
+
+	task.delay(duration * 0.55, function()
+		if ghost.Parent then
+			TweenService:Create(
+				ghost,
+				TweenInfo.new(duration * 0.45, Enum.EasingStyle.Linear),
+				{ TextTransparency = 1 }
+			):Play()
+		end
+	end)
+
+	fallTween.Completed:Connect(function()
+		ghost:Destroy()
+	end)
+end
+
+task.spawn(function()
+	while Gui.Parent do
+		task.wait(math.random(25, 70) / 100)
+		SpawnGhost()
+	end
+end)
+
+-- Floating footer ---------------------------------------------
+local JumpText = Instance.new("TextLabel")
+JumpText.Name = "CzJumpText"
+JumpText.Size = UDim2.fromOffset(220, 30)
+JumpText.AnchorPoint = Vector2.new(1, 1)
+JumpText.Position = UDim2.new(1, -18, 1, -7)
+JumpText.BackgroundColor3 = C_BG
+JumpText.BorderSizePixel = 0
+JumpText.Text = "🎃 Cz hub • discord.gg/NTvXzmKqz9"
+JumpText.TextColor3 = C_TEXT
+JumpText.Font = Enum.Font.GothamMedium
+JumpText.TextSize = 11
+JumpText.ZIndex = 2
+JumpText.Parent = Gui
+
+local JumpCorner = Instance.new("UICorner")
+JumpCorner.CornerRadius = UDim.new(0, 10)
+JumpCorner.Parent = JumpText
+
+local JumpStroke = Instance.new("UIStroke")
+JumpStroke.Color = C_STROKE
+JumpStroke.Thickness = 1
+JumpStroke.Transparency = 0.4
+JumpStroke.Parent = JumpText
+
+-- Init visuals ------------------------------------------------
+SetToggle(AntiDieButton, AntiDieCircle, false)
+SetToggle(AntiFlingButton, AntiFlingCircle, false)
+SetToggle(SpinButton, SpinCircle, false)
+UpdateDot()
